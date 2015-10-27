@@ -1,0 +1,482 @@
+<html>
+<head>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pure/0.6.0/pure-min.css">
+<style>
+table
+{
+    /*table-layout:fixed;*/
+    width:100%;
+}
+</style>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js"></script>
+<script>
+
+var xScale, xAxis, xValue, yScale, yAxis, yValue, svg, tooltip;
+var ids = {}, revids = {};
+function initScatter(xTextLabel, yTextLabel){
+  // D3 code for scatter plot is a heavily modified version of http://jsfiddle.net/Q567s/155/
+  // Setup data
+  var dataset = [];  // Initialize empty array
+  // Setup settings for graphic
+  var canvas_width = 500;
+  var canvas_height = 300;
+  var padding = 50;  // for chart edges
+  // Create scale functions
+  xScale = d3.scale.linear()  // xScale is width of graphic
+    .domain([0, d3.max(dataset, function(d) {
+        return d[0];  // input domain
+    })])
+    .range([padding, canvas_width - padding * 2]); // output range
+  yScale = d3.scale.linear()  // yScale is height of graphic
+    .domain([0, d3.max(dataset, function(d) {
+        return d[1];  // input domain
+    })])
+    .range([canvas_height - padding, padding]);  // remember y starts on top going down so we flip
+  // Define X axis
+  xAxis = d3.svg.axis()
+    .scale(xScale)
+    .orient("bottom")
+    .ticks(5)
+    .tickFormat(numberFormatter);
+  xValue = function(d) { return d[0];}
+  // Define Y axis
+  yAxis = d3.svg.axis()
+    .scale(yScale)
+    .orient("left")
+    .ticks(5)
+    .tickFormat(numberFormatter);
+  yValue = function(d) { return d[1];}
+  // Create SVG element
+  svg = d3.select("#scatter-load")  // This is where we put our vis
+    .append("svg")
+    .attr("width", canvas_width)
+    .attr("height", canvas_height)
+  // Create Circles
+  svg.selectAll("circle")
+    .data(dataset)
+    .enter()
+    .append("circle")  // Add circle svg
+    .attr("cx", function(d) {
+        return xScale(d[0]);  // Circle's X
+    })
+    .attr("cy", function(d) {  // Circle's Y
+        return yScale(d[1]);
+    })
+    .attr("r", 2);  // radius
+  // Add to X axis
+  svg.append("g")
+    .attr("class", "x axis")
+    .attr("transform", "translate(0," + (canvas_height - padding) +")")
+    .call(xAxis)
+    .append("text")
+    .attr("class", "label")
+    .attr("x", (canvas_width - padding))
+    .attr("y", +6)
+    .style("text-anchor", "end")
+    .text(xTextLabel);
+  // Add to Y axis
+  svg.append("g")
+    .attr("class", "y axis")
+    .attr("transform", "translate(" + padding +",0)")
+    .call(yAxis)
+    .append("text")
+    .attr("class", "label")
+    .attr("transform", "rotate(-90)")
+    .attr("y", -6)
+    .attr("dy", ".71em")
+    .style("text-anchor", "end")
+    .text(yTextLabel);
+  // add the tooltip area to the webpage
+  tooltip = d3.select("body").append("div")
+    .attr("class", "tooltip")
+    .style("opacity", 0);
+}
+
+function maxThreshold(val, max){
+  val =  Math.ceil(val/4);
+  if (val > max){
+    return max;
+  }
+  return val;
+}
+
+function updateScatter(dataset, xTextLabel, yTextLabel){
+  console.log('dataset', dataset);
+  // Update scale domains
+  xScale.domain([0, d3.max(dataset, function(d) {
+    return d[0]; })]);
+  yScale.domain([0, d3.max(dataset, function(d) {
+    return d[1]; })]);
+  // Update circles
+  svg.selectAll("circle")
+    .data(dataset)  // Update with new data
+    .transition()  // Transition from old to new
+    .duration(1000)  // Length of animation
+    .each("start", function() {  // Start animation
+      d3.select(this)  // 'this' means the current element
+        .attr("fill", "red")  // Change color
+        .attr("r", 5);  // Change size
+    })
+    .delay(function(d, i) {
+      return i / dataset.length * 500;  // Dynamic delay (i.e. each item delays a little longer)
+    })
+    .attr("cx", function(d) {
+      return xScale(d[0]);  // Circle's X
+    })
+    .attr("cy", function(d) {
+      return yScale(d[1]);  // Circle's Y
+    })
+    .each("end", function() {  // End animation
+      d3.select(this)  // 'this' means the current element
+        .transition()
+        .duration(500)
+        .attr("fill", "black")  // Change color
+        .attr("r", function(d){ return maxThreshold(d[d.length-1], 10); }/*2*/);  // Change radius
+    });
+  
+  // Create Circles
+  svg.selectAll("circle")
+    .data(dataset)
+    .enter()
+    .append("circle")  // Add circle svg
+    .attr("cx", function(d) {
+      return xScale(d[0]);  // Circle's X
+    })
+    .attr("cy", function(d) {  // Circle's Y
+      return yScale(d[1]);
+    })
+    .attr("r", function(d){ return maxThreshold(d[d.length-1], 10); }/*2*/)  // radius
+    .on("mouseover", function(d) {
+      tooltip.transition()
+        .duration(200)
+        .style("opacity", .9);
+      tooltip.html('Count: ' + d[d.length-1] + '<br/>' + xTextLabel + ': ' + revids[ xValue(d) ] +
+        '<br/>' + yTextLabel + ': ' + revids[ yValue(d) ])
+        .style("left", (d3.event.pageX + 5) + "px")
+        .style("top", (d3.event.pageY - 28) + "px");
+      })
+      .on("mouseout", function(d) {
+        tooltip.transition()
+        .duration(500)
+        .style("opacity", 0);
+      });
+  // Update X Axis
+  svg.select(".x.axis")
+    .transition()
+    .duration(1000)
+    .call(xAxis);
+  // Update Y Axis
+  svg.select(".y.axis")
+    .transition()
+    .duration(100)
+    .call(yAxis);
+}
+
+function numberFormatter(number){
+  if (number > 1000000000){
+    return Math.round(number / 1000000000 * 100)/100 + 'b';
+  }
+  if (number > 1000000){
+    return Math.round(number / 1000000 * 100)/100 + 'm';
+  }
+  if (number > 1000){
+    return Math.round(number / 1000 * 100)/100 + 'k';
+  }
+  return number;
+}
+
+
+function streamScatter(){
+  console.log('search()');
+  var groupby = 'src-process';
+  var arr = groupby.split('-');
+  var xTextLabel = arr[0];
+  var yTextLabel = arr[1];
+  var args = { 
+    "terms": {
+      "and": [
+        document.getElementById('term').value
+      ]
+    },
+    "groupby": [groupby],
+    "arrkeys": true,
+    "force_introspection": true
+  };
+  try {
+    initScatter(xTextLabel, yTextLabel);
+    var source = new EventSource('search?args=' + encodeURIComponent(JSON.stringify(args)));
+    var lastData = null;
+    source.addEventListener('message', function(e) {
+      //console.log(e.data);
+      try {
+        var data = JSON.parse(e.data);
+        if (!Object.keys(data).length){
+          console.log('All done!');
+          source.close();
+          return;
+        }
+        console.log('got data');
+        updateProgress(data);
+        var dataset = [];
+        if (typeof(data['groupby']) === 'undefined') return;
+        for (var k in data["groupby"][groupby]){
+          var row = data["groupby"][groupby][k]["k"];
+          for (var i = 0, len = row.length; i < len; i++){
+            if (typeof(ids[ row[i] ]) === 'undefined'){
+              ids[ row[i] ] = Object.keys(ids).length;
+              revids[ ids[ row[i] ] ] = row[i];
+            }
+          }
+          dataset.push([ids[ row[0] ], ids[ row[1] ], data["groupby"][groupby][k]["v"]]);
+        }
+        updateScatter(dataset, xTextLabel, yTextLabel);
+        
+        lastData = data;
+      } catch (e){
+        console.error(e);
+        source.close();
+      }
+    }, false);
+    source.addEventListener('error', function(e){
+      console.log('eventstream error', e, JSON.stringify(e), lastData);
+      source.close();
+    });
+  } catch (e){
+    console.error(e);
+  }
+}
+
+function displayResult(result){
+  updateProgress(result);
+  document.getElementById('results').innerHTML = result.results.length;
+}
+
+function updateProgress(result){
+  if (result.final){
+    result.percentage_complete = 1;
+  }
+  document.getElementById('progress').innerHTML =
+    '<table><tr><td>Percentage Complete</td><td>Time Taken</td></tr><tr><td>' 
+    + (100 * result.percentage_complete).toString().substr(0,4)
+    + '</td><td>' + result.time_taken + '</td></tr></table>';
+}
+
+var resultsStorage = [];
+function rawResults(result){
+  resultsStorage.push(result);
+  document.getElementById('results').innerHTML = resultsStorage.length;
+}
+
+function initViz(width, height, pixelSize){
+  var canvas = window.document.createElement('canvas');
+  canvas.id = 'viz';
+  canvas.width = width * pixelSize;
+  canvas.height = height * pixelSize;
+  document.getElementById('canvas_container').appendChild(canvas);
+  return canvas;
+}
+
+function drawRow(canvas, ctx, pixelSize, data, ids, counter){
+  for (var k in data){
+    if (k !== 'dst') continue;
+    var fieldvalue = k + ":" + data[k];
+    if (typeof(ids[fieldvalue]) === 'undefined'){
+      ids[fieldvalue] = Object.keys(ids).length;
+    }
+    var width = (ids[fieldvalue] * pixelSize) % canvas.width;
+    ctx.fillRect(width, counter * pixelSize, pixelSize, pixelSize);
+    //console.log(width, counter * pixelSize);
+  }
+}
+
+function streamSearch(){
+  console.log('search()');
+  var width = window.innerWidth;
+  var height = 10000;
+  var pixelSize = 1;
+  var canvas = initViz(width, height, pixelSize);
+  var ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, width * pixelSize, height * pixelSize);
+  ctx.fillStyle = 'rgb(' + 0 + ',' + 0 + ',' + 0 + ')';
+  var counter = 0;
+  var ids = {};
+  var args = { 
+    "terms": {
+      "and": [
+        document.getElementById('term').value
+      ]
+    },
+    "limit": height,
+    //"direct_results": true
+    "groupby": "*"
+  };
+  try {
+    var source = new EventSource('search?args=' + encodeURIComponent(JSON.stringify(args)));
+    var lastData = null;
+    source.addEventListener('message', function(e) {
+      //console.log(e.data);
+      try {
+        var data = JSON.parse(e.data);
+        if (!Object.keys(data).length){
+          console.log('All done!');
+          source.close();
+          return;
+        }
+        console.log('got data');
+        groupbyTables(data);
+        // for (var i = 0, len = data.length; i < len; i++){
+        //   counter++;
+        //   drawRow(canvas, ctx, pixelSize, data[i], ids, counter);  
+        // }
+        
+        lastData = data;
+      } catch (e){
+        console.error(e);
+        source.close();
+      }
+    }, false);
+    source.addEventListener('error', function(e){
+      console.log('eventstream error', e, JSON.stringify(e), lastData);
+      source.close();
+    });
+  } catch (e){
+    console.error(e);
+  }
+}
+
+function streamGroupby(){
+  console.log('search()');
+  var args = { 
+    "terms": {
+      "and": [
+        document.getElementById('term').value
+      ]
+    },
+    "groupby": "*"
+  };
+  try {
+    var source = new EventSource('search?args=' + encodeURIComponent(JSON.stringify(args)));
+    var lastData = null;
+    source.addEventListener('message', function(e) {
+      //console.log(e.data);
+      try {
+        var data = JSON.parse(e.data);
+        if (!Object.keys(data).length){
+          console.log('All done!');
+          source.close();
+          return;
+        }
+        console.log('got data');
+        updateProgress(data);
+        groupbyTables(data);
+        
+        lastData = data;
+      } catch (e){
+        console.error(e);
+        source.close();
+      }
+    }, false);
+    source.addEventListener('error', function(e){
+      console.log('eventstream error', e, JSON.stringify(e), lastData);
+      source.close();
+    });
+  } catch (e){
+    console.error(e);
+  }
+}
+
+function groupbyTables(result){
+  var outerContainer = $('#results');
+  outerContainer.empty();
+  if (typeof(result.groupby) === 'undefined') return;
+  
+  var limitPerRow = 5;
+  var counter = 0;
+  var gcontainer;
+  for (var groupby in result.groupby){
+    if (counter >= limitPerRow){
+      counter = 0;
+    }
+    if (counter === 0){
+      gcontainer = document.createElement('div');
+      $(gcontainer).addClass('pure-g');
+      outerContainer.append(gcontainer);
+    }
+    counter++;
+
+    var container = document.createElement('div');
+    $(container).addClass('pure-u-1-' + limitPerRow);
+    var title = document.createElement('div');
+    title.innerHTML = groupby;
+    var table = document.createElement('table');
+    var tbody = document.createElement('tbody');
+    table.appendChild(tbody);
+    var sorted = [];
+    for (var k in result.groupby[groupby]){
+      var v = result.groupby[groupby][k];
+      if (k.indexOf('\0') >= 0){
+        var tmparr = k.split('\0');
+        k = tmparr.join(' ');
+      }
+      sorted.push([k, v]);
+    }
+    sorted.sort(function(a,b){
+      a = a[1];
+      b = b[1];
+      return a < b ? 1 : (a > b ? -1 : 0);
+    });
+    for (var i = 0, len = sorted.length; i < len; i++){
+      var tr = document.createElement('tr');
+      var td = document.createElement('td');
+      td.innerHTML = sorted[i][0];
+      tr.appendChild(td);
+      td = document.createElement('td');
+      td.innerHTML = sorted[i][1];
+      tr.appendChild(td);
+      table.appendChild(tr);
+    }
+    container.appendChild(title);
+    container.appendChild(table);
+    gcontainer.appendChild(container);
+  }
+  
+}
+
+function search(){
+  try {
+    var args = { 
+      "terms": {
+        "and": [
+          document.getElementById('term').value
+        ]
+      },
+      "groupby": ["*"]
+    };
+    $.ajax({
+      type: 'POST',
+      url: 'search',
+      data: JSON.stringify(args),
+      dataType: 'JSON'
+    }).done(function( data, status, xhr ){
+      console.log(data);
+      groupbyTables(data);
+    });
+  } catch (e){
+    console.error(e);
+  }
+}
+
+</script>
+</head>
+<body>
+  <form action="javascript:streamScatter()">
+    <input name="term" id="term"></input>
+    <button type="submit">Search</button>
+  </form>
+  <div id="progress"></div>
+  <div id="canvas_container"></div>
+  <div id="scatter-load"></div>
+  <div id="results"></div>
+</body>
+</html>

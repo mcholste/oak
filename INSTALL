@@ -1,0 +1,19 @@
+# Install snappy
+wget https://snappy.googlecode.com/files/snappy-1.1.1.tar.gz
+tar xzvf snappy-1.1.1.tar.gz
+cd snappy-1.1.1
+./configure && make && sudo make install
+
+# Install tools (if necessary)
+sudo apt-get install autoconf2.13 libtool
+
+# Install sparkey
+git clone https://github.com/spotify/sparkey
+cd sparkey
+autoreconf --install
+./configure && make && sudo make install && sudo ldconfig
+
+# Install sparkey-python
+git clone https://github.com/spotify/sparkey-python.git
+cd sparkey-python
+python setup.py build && sudo python setup.py install
